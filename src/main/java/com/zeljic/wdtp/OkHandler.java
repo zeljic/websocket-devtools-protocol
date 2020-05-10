@@ -1,19 +1,19 @@
 package com.zeljic.wdtp;
 
 import com.google.gson.*;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
+import okio.ByteString;
+import org.jetbrains.annotations.NotNull;
 
-import java.net.http.WebSocket;
-import java.nio.ByteBuffer;
-import java.util.Optional;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class Handler implements WebSocket.Listener
+public class OkHandler extends WebSocketListener
 {
 	private WebSocket ws;
 	private CountDownLatch counter = new CountDownLatch(1);
-	private StringBuilder stringBuilder = new StringBuilder();
 	private int waitingId;
 	private JsonObject lastJsonObject = new JsonObject();
 
@@ -23,47 +23,33 @@ public class Handler implements WebSocket.Listener
 			.create();
 
 	@Override
-	public void onOpen(WebSocket webSocket)
+	public void onOpen(@NotNull WebSocket webSocket, @NotNull Response response)
 	{
 		System.out.println("ws open");
+		super.onOpen(webSocket, response);
 	}
 
 	@Override
-	public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last)
+	public void onMessage(@NotNull WebSocket webSocket, @NotNull String text)
 	{
-		this.stringBuilder.append(data);
 
-		if (last)
+		System.out.println(String.format("<<< %s", text));
+
+		this.lastJsonObject = gson.fromJson(text, JsonObject.class);
+
+		if (this.lastJsonObject.has("id") && this.lastJsonObject.get("id").getAsInt() == this.waitingId)
 		{
-			String message = this.stringBuilder.toString();
-
-			System.out.println(String.format("<<< %s", message));
-
-			this.lastJsonObject = gson.fromJson(message, JsonObject.class);
-
-			this.stringBuilder = new StringBuilder();
-
-			if (this.lastJsonObject.has("id") && this.lastJsonObject.get("id").getAsInt() == this.waitingId)
-			{
-				this.counter.countDown();
-			}
+			this.counter.countDown();
 		}
 
-		return WebSocket.Listener.super.onText(webSocket, data, last);
+		super.onMessage(webSocket, text);
 	}
 
 	@Override
-	public void onError(WebSocket webSocket, Throwable error)
+	public void onMessage(@NotNull WebSocket webSocket, @NotNull ByteString bytes)
 	{
-		error.printStackTrace();
-	}
-
-	@Override
-	public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last)
-	{
-		System.out.println("on binary");
-
-		return WebSocket.Listener.super.onBinary(webSocket, data, last);
+		System.out.println("on binary message");
+		super.onMessage(webSocket, bytes);
 	}
 
 	public void setWebSocket(WebSocket ws)
@@ -77,7 +63,7 @@ public class Handler implements WebSocket.Listener
 		this.counter = new CountDownLatch(1);
 
 		System.out.println(String.format(">>> %s", request));
-		this.ws.sendText(request, true);
+		this.ws.send(request);
 
 		try
 		{
@@ -137,17 +123,5 @@ public class Handler implements WebSocket.Listener
 		request.add("params", params);
 
 		return this.execute(id, request);
-	}
-
-	public static Optional<JsonObject> getResult(JsonObject response)
-	{
-		if (response.has("result"))
-		{
-			var result = response.getAsJsonObject("result");
-
-			return Optional.ofNullable(result);
-		}
-
-		return Optional.empty();
 	}
 }

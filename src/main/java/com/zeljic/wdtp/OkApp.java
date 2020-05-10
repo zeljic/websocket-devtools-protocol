@@ -1,31 +1,20 @@
 package com.zeljic.wdtp;
 
 import com.google.gson.JsonObject;
+import okhttp3.*;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.WebSocket;
-import java.time.Duration;
 import java.util.Optional;
 
-public class App
+public class OkApp
 {
 	public static void main(String[] args)
 	{
-		URI wsUri = URI.create("ws://127.0.0.1:9111/devtools/browser/07666ea7-dff6-4fe2-8e7f-50b49e953733");
+		var client = new OkHttpClient().newBuilder().build();
 
-		Handler handler = new Handler();
+		Request request = new Request.Builder().url("ws://127.0.0.1:9111/devtools/browser/ed4da3c0-a53d-462c-8704-016f4aad428e").build();
+		var handler = new OkHandler();
 
-		WebSocket ws = HttpClient
-				.newBuilder()
-				.connectTimeout(Duration.ofSeconds(30))
-				.build()
-				.newWebSocketBuilder()
-				.connectTimeout(Duration.ofSeconds(30))
-				.buildAsync(wsUri, handler)
-				.join();
-
-		ws.request(1);
+		WebSocket ws = client.newWebSocket(request, handler);
 
 		handler.setWebSocket(ws);
 
@@ -51,6 +40,6 @@ public class App
 		handler.evaluate(3, sessionId, "document.body.style.background = 'red';");
 		handler.evaluate(4, sessionId, "3.14 * 9.81");
 		handler.evaluate(5, sessionId, "'" + ("1234567890".repeat(500)) + "';");
-		handler.evaluate(6, sessionId, "'" + ("1234567890".repeat(2000)) + "';");
+		handler.evaluate(6, sessionId, "'" + ("1234567890".repeat(20000)) + "';");
 	}
 }
